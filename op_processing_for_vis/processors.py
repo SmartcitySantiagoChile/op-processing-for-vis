@@ -1,4 +1,5 @@
 import csv
+import logging
 import os
 import shutil
 from collections import defaultdict
@@ -8,30 +9,19 @@ import utm
 from shapely.geometry import LineString, Point
 
 from op_processing_for_vis.config import OUTPUT_PATH, TMP_PATH
-from op_processing_for_vis.utils import get_route_id_info
+from op_processing_for_vis.utils import get_route_id_info, write_csv
+
+logger = logging.getLogger(__name__)
 
 
-def build_op_data(op_date):
-    # create output directory
-    output_directory = os.path.join(OUTPUT_PATH, op_date)
-    if os.path.exists(output_directory):
-        shutil.rmtree(output_directory)
-    os.makedirs(output_directory)
-
-    data_path = os.path.join(TMP_PATH, '00Entrada', op_date)
-    # copy route dictionary
-    route_dictionary_filename = 'Diccionario-Servicios_{0}.csv'.format(op_date.replace('-', ''))
-    route_dictionary_path = os.path.join(data_path, 'Diccionarios', route_dictionary_filename)
-    shutil.copyfile(route_dictionary_path, os.path.join(output_directory, route_dictionary_filename))
-
-    # generate stop file
+def create_stop_file(op_date, data_path, output_directory):
+    route_id_info = get_route_id_info(op_date)
     stop_filename = 'ConsolidadoParadas_{0}.csv'.format(op_date.replace('-', ''))
     stop_path = os.path.join(data_path, 'Paraderos', stop_filename)
     new_rows = []
     with open(stop_path, newline='', encoding='utf-8-sig') as csvfile:
         reader = csv.DictReader(csvfile, delimiter=';')
 
-        route_id_info = get_route_id_info(op_date)
         route_id_not_found_set = set()
         counter_by_route_id = defaultdict(lambda: 0)
         for row in reader:
@@ -40,8 +30,8 @@ def build_op_data(op_date):
             route_id_without_variant = '{0}{1}'.format(row['Código Usuario'], direction)
 
             if row['x'] in ['', '0'] or row['y'] in ['', '0']:
-                print('location is not defined for route_id "{0}" in stop "{1}"'.format(route_id,
-                                                                                        row['Código paradero TS']))
+                logger.warning('location is not defined for route_id "{0}" in stop "{1}"'.format(
+                    route_id, row['Código paradero TS']))
                 continue
 
             x = float(row['x'].replace(',', '.'))
@@ -59,18 +49,17 @@ def build_op_data(op_date):
             else:
                 route_id_not_found_set.add(route_id)
 
-    print('route ids without translation: {}'.format(len(route_id_not_found_set)))
-    print(route_id_not_found_set)
+    logger.info('route ids without translation: {}'.format(len(route_id_not_found_set)))
+    logger.info(route_id_not_found_set)
 
-    with open(os.path.join(output_directory, '{0}.stop'.format(op_date)), 'w', newline='', encoding='utf-8') as csvfile:
-        spamwriter = csv.writer(csvfile, delimiter='|', quoting=csv.QUOTE_MINIMAL)
-        header = ['Servicio', 'ServicioUsuario', 'Operador', 'Correlativo', 'Codigo', 'CodigoUsuario', 'Nombre',
-                  'Latitud', 'Longitud', 'esZP']
-        spamwriter.writerow(header)
-        for row in new_rows:
-            spamwriter.writerow(row)
+    output_stop_filepath = os.path.join(output_directory, '{0}.stop'.format(op_date))
+    header = ['Servicio', 'ServicioUsuario', 'Operador', 'Correlativo', 'Codigo', 'CodigoUsuario', 'Nombre',
+              'Latitud', 'Longitud', 'esZP']
+    write_csv(output_stop_filepath, header, new_rows)
 
-    # generate shape file
+
+def create_shape_file(op_date, data_path, output_directory):
+    route_id_info = get_route_id_info(op_date)
     segment_distance = 500  # distance to interpolate
     shape_filename = 'ShapeRutas_{0}.csv'.format(op_date.replace('-', ''))
     stop_path = os.path.join(data_path, 'Rutas', shape_filename)
@@ -120,10 +109,33 @@ def build_op_data(op_date):
                 new_row = [auth_route_code, is_section_init, latitude, longitude, operator_code, user_route_code]
                 new_rows.append(new_row)
 
-    with open(os.path.join(output_directory, '{0}.shape'.format(op_date)), 'w', newline='',
-              encoding='utf-8') as csvfile:
-        spamwriter = csv.writer(csvfile, delimiter='|', quoting=csv.QUOTE_MINIMAL)
-        header = ['Route', 'IsSectionInit', 'Latitude', 'Longitude', 'Operator', 'RouteUser']
-        spamwriter.writerow(header)
-        for row in new_rows:
-            spamwriter.writerow(row)
+    output_shape_filepath = os.path.join(output_directory, '{0}.shape'.format(op_date))
+    header = ['Route', 'IsSectionInit', 'Latitude', 'Longitude', 'Operator', 'RouteUser']
+    write_csv(output_shape_filepath, header, new_rows)
+
+
+def create_op_info(op_date):
+    pass
+
+
+def build_op_data(op_date):
+    # create output directory
+    output_directory = os.path.join(OUTPUT_PATH, op_date)
+    if os.path.exists(output_directory):
+        shutil.rmtree(output_directory)
+    os.makedirs(output_directory)
+
+    data_path = os.path.join(TMP_PATH, '00Entrada', op_date)
+    # copy route dictionary
+    route_dictionary_filename = 'Diccionario-Servicios_{0}.csv'.format(op_date.replace('-', ''))
+    route_dictionary_path = os.path.join(data_path, 'Diccionarios', route_dictionary_filename)
+    shutil.copyfile(route_dictionary_path, os.path.join(output_directory, route_dictionary_filename))
+
+    # generate stop file
+    create_stop_file(op_date, data_path, output_directory)
+
+    # generate shape file
+    create_shape_file(op_date, data_path, output_directory)
+
+    # generate op info
+    create_op_info(op_date)

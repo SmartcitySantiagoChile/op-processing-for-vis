@@ -18,3 +18,11 @@ def get_route_id_info(op_date):
                                                     operator_code=row['UN'])
 
     return route_id_info
+
+
+def write_csv(filepath, header, rows):
+    with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
+        spamwriter = csv.writer(csvfile, delimiter='|', quoting=csv.QUOTE_MINIMAL)
+        spamwriter.writerow(header)
+        for row in rows:
+            spamwriter.writerow(row)
