@@ -9,7 +9,7 @@ import utm
 from shapely.geometry import LineString, Point
 
 from op_processing_for_vis.config import OUTPUT_PATH, TMP_PATH
-from op_processing_for_vis.utils import get_route_id_info, write_csv
+from op_processing_for_vis.utils import get_route_id_info, write_csv, get_period_info
 
 logger = logging.getLogger(__name__)
 
@@ -62,9 +62,9 @@ def create_shape_file(op_date, data_path, output_directory):
     route_id_info = get_route_id_info(op_date)
     segment_distance = 500  # distance to interpolate
     shape_filename = 'ShapeRutas_{0}.csv'.format(op_date.replace('-', ''))
-    stop_path = os.path.join(data_path, 'Rutas', shape_filename)
+    shape_path = os.path.join(data_path, 'Rutas', shape_filename)
     new_rows = []
-    with open(stop_path, newline='', encoding='utf-8-sig') as csvfile:
+    with open(shape_path, newline='', encoding='utf-8-sig') as csvfile:
         reader = csv.reader(csvfile, delimiter=';')
         next(reader)
         for route_id, group_data in groupby(reader, key=lambda x: x[1]):
@@ -114,8 +114,87 @@ def create_shape_file(op_date, data_path, output_directory):
     write_csv(output_shape_filepath, header, new_rows)
 
 
-def create_op_info(op_date):
-    pass
+def create_op_info(op_date, data_path, output_directory):
+    period_id_dict = get_period_info(op_date)
+
+    suffix = op_date.replace('-', '')
+    file_names = ['Frecuencias_{}.csv'.format(suffix), 'Capacidades_{}.csv'.format(suffix),
+                  'Distancias_{}.csv'.format(suffix), 'Velocidades_{}.csv'.format(suffix)]
+
+    transformed_data = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
+    for file_index, filename in enumerate(file_names):
+        shape_path = os.path.join(data_path, 'Frecuencias', filename)
+        with open(shape_path, newline='', encoding='utf-8-sig') as csvfile:
+            reader = csv.reader(csvfile, delimiter=';')
+            # skip first fifth rows
+            next(reader)
+            row = next(reader)
+
+            # get day limit in file
+            work_day_index = row.index('Laboral')
+            saturday_index = row.index('Sábado')
+            sunday_index = row.index('Domingo')
+
+            next(reader)
+            start_period_row = next(reader)[5:]
+            end_period_row = next(reader)[5:]
+
+            start_period_row = list(map(lambda x: x.zfill(5) + ':00', start_period_row))
+            end_period_row = list(map(lambda x: x.zfill(5) + ':59', end_period_row))
+
+            for row in reader:
+                business_unit = row[0]
+                direction = row[3]
+                user_route_code = row[2]
+                auth_route_code = row[1]
+
+                direction_suffix = 'I' if direction == 'Ida' else 'R'
+                user_route_code_with_direction = '{0}{1}'.format(user_route_code, direction_suffix)
+                auth_route_code_with_direction = '{0}{1}'.format(auth_route_code, direction_suffix)
+                meta_row = (user_route_code_with_direction, business_unit, user_route_code, direction,
+                            auth_route_code_with_direction)
+
+                aux = work_day_index
+                while aux < saturday_index:
+                    period_index = aux - work_day_index
+                    start_period = start_period_row[period_index]
+                    end_period = end_period_row[period_index]
+                    period_id = period_id_dict[('0', start_period, end_period)]
+                    transformed_data[meta_row]['0'][period_id][(start_period, end_period)].append(row[aux])
+                    aux += 1
+
+                aux = saturday_index
+                while aux < sunday_index:
+                    period_index = aux - work_day_index
+                    start_period = start_period_row[period_index]
+                    end_period = end_period_row[period_index]
+                    period_id = period_id_dict[('1', start_period, end_period)]
+                    transformed_data[meta_row]['1'][period_id][(start_period, end_period)].append(row[aux])
+                    aux += 1
+
+                aux = sunday_index
+                while aux < len(row):
+                    period_index = aux - work_day_index
+                    start_period = start_period_row[period_index]
+                    end_period = end_period_row[period_index]
+                    period_id = period_id_dict[('2', start_period, end_period)]
+                    transformed_data[meta_row]['2'][period_id][(start_period, end_period)].append(row[aux])
+                    aux += 1
+
+    # create rows
+    new_rows = []
+    for key in transformed_data.keys():
+        for day_type in transformed_data[key]:
+            for period_id in transformed_data[key][day_type]:
+                for period_times in transformed_data[key][day_type][period_id]:
+                    values = transformed_data[key][day_type][period_id][period_times]
+                    new_row = list(key) + [day_type] + [period_id] + list(period_times) + values + ['']
+                    new_rows.append(new_row)
+
+    output_shape_filepath = os.path.join(output_directory, '{0}.opdata'.format(op_date))
+    header = ['ServicioSentido', 'UN', 'Servicio', 'Sentido', 'ServicioTS', 'TipoDia', 'PeriodoTS', 'HoraIni',
+              'HoraFin', 'Frecuencia', 'Capacidad', 'Distancia', 'Velocidad', '']
+    write_csv(output_shape_filepath, header, new_rows)
 
 
 def build_op_data(op_date):
@@ -138,4 +217,4 @@ def build_op_data(op_date):
     create_shape_file(op_date, data_path, output_directory)
 
     # generate op info
-    create_op_info(op_date)
+    create_op_info(op_date, data_path, output_directory)

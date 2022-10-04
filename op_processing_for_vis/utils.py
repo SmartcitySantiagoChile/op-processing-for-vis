@@ -20,6 +20,28 @@ def get_route_id_info(op_date):
     return route_id_info
 
 
+def get_period_info(op_date):
+    data_path = os.path.join(TMP_PATH, '00Entrada', op_date)
+    period_filename = 'Diccionario-PeriodosTS_{0}.csv'.format(op_date.replace('-', ''))
+    period_path = os.path.join(data_path, 'Diccionarios', period_filename)
+
+    period_id_info = dict()
+    with open(period_path, newline='', encoding='utf-8-sig') as csvfile:
+        reader = csv.DictReader(csvfile, delimiter=';')
+        for row in reader:
+            if row['TIPODIA'] == 'LABORAL':
+                day_type = '0'
+            elif row['TIPODIA'] == 'SABADO':
+                day_type = '1'
+            elif row['TIPODIA'] == 'DOMINGO':
+                day_type = '2'
+            start_period = row['HORAINI'].zfill(8)
+            end_period = row['HORAFIN'].zfill(8)
+            period_id_info[(day_type, start_period, end_period)] = row['ID']
+
+    return period_id_info
+
+
 def write_csv(filepath, header, rows):
     with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
         spamwriter = csv.writer(csvfile, delimiter='|', quoting=csv.QUOTE_MINIMAL)
