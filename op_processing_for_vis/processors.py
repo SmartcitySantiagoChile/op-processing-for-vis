@@ -1,15 +1,18 @@
 import csv
+import gzip
 import logging
 import os
 import shutil
 from collections import defaultdict
 from itertools import groupby
 
+import paramiko
 import utm
+from decouple import config
 from shapely.geometry import LineString, Point
 
 from op_processing_for_vis.config import OUTPUT_PATH, TMP_PATH
-from op_processing_for_vis.utils import get_route_id_info, write_csv, get_period_info
+from op_processing_for_vis.utils import get_route_id_info, write_csv, get_period_info, AdatrapSiteManager
 
 logger = logging.getLogger(__name__)
 
@@ -197,6 +200,49 @@ def create_op_info(op_date, data_path, output_directory):
     write_csv(output_shape_filepath, header, new_rows)
 
 
+def upload_op_data_to_server(op_date):
+    output_directory = os.path.join(OUTPUT_PATH, op_date)
+    file_extensions = ['opdata', 'shape', 'stop']
+
+    ssh_client = paramiko.SSHClient()
+    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    k = paramiko.RSAKey.from_private_key_file(os.path.join(TMP_PATH, 'private.key'))
+    ssh_client.connect(hostname=config('ADATRAP_HOST'), username=config('ADATRAP_SSH_USERNAME'), pkey=k)
+    ftp_client = ssh_client.open_sftp()
+
+    for file_extension in file_extensions:
+        file_path = os.path.join(output_directory, '{0}.{1}'.format(op_date, file_extension))
+        with open(file_path, mode='rb') as file_obj:
+            gz_filename = '{0}.{1}.gz'.format(op_date, file_extension)
+            gz_file_path = os.path.join(output_directory, gz_filename)
+            with gzip.open(gz_file_path, 'wb') as gz_file_obj:
+                gz_file_obj.writelines(file_obj)
+
+        ftp_client.put(gz_file_path, '/tmp/{0}'.format(gz_filename))
+
+    ftp_client.close()
+
+    ssh_client.exec_command("mv /tmp/*.opdata.gz /var/lib/adatrap/data/opdata/")
+    ssh_client.exec_command("mv /tmp/*.stop.gz /var/lib/adatrap/data/stop/")
+    ssh_client.exec_command("mv /tmp/*.shape.gz /var/lib/adatrap/data/shape/")
+    ssh_client.exec_command(
+        "/home/server/fondefVizServer/venv/bin/python /home/server/fondefVizServer/manage.py searchfiles")
+
+    ssh_client.close()
+
+
+def upload_op_data_to_es(op_date):
+    """
+
+    :param op_date:
+    :return:
+    """
+    adatrap_site_manager = AdatrapSiteManager()
+    adatrap_site_manager.upload_file('{0}.shape.gz'.format(op_date))
+    adatrap_site_manager.upload_file('{0}.stop.gz'.format(op_date))
+    adatrap_site_manager.upload_file('{0}.opdata.gz'.format(op_date))
+
+
 def build_op_data(op_date):
     # create output directory
     output_directory = os.path.join(OUTPUT_PATH, op_date)
@@ -218,3 +264,9 @@ def build_op_data(op_date):
 
     # generate op info
     create_op_info(op_date, data_path, output_directory)
+
+    # send files to server
+    upload_op_data_to_server(op_date)
+
+    # upload files to elasticsearch
+    upload_op_data_to_es(op_date)

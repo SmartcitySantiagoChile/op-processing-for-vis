@@ -1,7 +1,13 @@
 import csv
+import logging
 import os
 
+import requests
+from decouple import config
+
 from op_processing_for_vis.config import TMP_PATH
+
+logger = logging.getLogger(__name__)
 
 
 def get_route_id_info(op_date):
@@ -48,3 +54,48 @@ def write_csv(filepath, header, rows):
         spamwriter.writerow(header)
         for row in rows:
             spamwriter.writerow(row)
+
+
+class AdatrapSiteManager:
+
+    def __init__(self):
+        self.server_name = 'https://{0}'.format(config('ADATRAP_HOST'))
+        self.server_username = config('ADATRAP_SITE_USERNAME')
+        # urls
+        self.LOGIN_URL = '{0}/user/login/'.format(self.server_name)
+        self.UPLOAD_FILE_DATA_PAGE = '{0}/admin/datamanager/managerOP/'.format(self.server_name)
+        self.UPLOAD_FILE_DATA = '{0}/admin/datamanager/uploadData/'.format(self.server_name)
+
+        self.session = self.get_logged_session()
+
+    def get_logged_session(self):
+        payload = {
+            'username': self.server_username,
+            'password': config('ADATRAP_SITE_PASSWORD'),
+            'next': '/admin'
+        }
+
+        req_session = requests.Session()
+        res = req_session.get(self.LOGIN_URL)
+        csrf_token = res.cookies['csrftoken']
+        payload['csrfmiddlewaretoken'] = csrf_token
+
+        req_session.headers.update({'referer': self.LOGIN_URL})
+        response = req_session.post(self.LOGIN_URL, data=payload, cookies=res.cookies)
+
+        logger.info('se intenta iniciar sesión en "{0}" con usuario "{1}". Resultado: {2}'.format(
+            self.server_name, self.server_username, response.status_code))
+
+        return req_session
+
+    def upload_file(self, filename):
+        payload = {
+            'fileName': filename
+        }
+
+        self.session.headers.update({
+            'referer': self.UPLOAD_FILE_DATA
+        })
+
+        response = self.session.post(self.UPLOAD_FILE_DATA, data=payload)
+        logger.info('Resultado de envío: {0}'.format(response.status_code))
