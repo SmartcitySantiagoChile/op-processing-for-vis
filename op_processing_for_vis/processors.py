@@ -264,9 +264,3 @@ def build_op_data(op_date):
 
     # generate op info
     create_op_info(op_date, data_path, output_directory)
-
-    # send files to server
-    upload_op_data_to_server(op_date)
-
-    # upload files to elasticsearch
-    upload_op_data_to_es(op_date)
