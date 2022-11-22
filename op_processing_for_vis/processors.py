@@ -12,7 +12,7 @@ from decouple import config
 from shapely.geometry import LineString, Point
 
 from op_processing_for_vis.config import OUTPUT_PATH, TMP_PATH
-from op_processing_for_vis.utils import get_route_id_info, write_csv, get_period_info, AdatrapSiteManager
+from op_processing_for_vis.utils import get_route_id_info, write_csv, get_period_info, AdatrapSiteManager, angle_between
 
 logger = logging.getLogger(__name__)
 
@@ -72,8 +72,8 @@ def create_shape_file(op_date, data_path, output_directory):
         next(reader)
         for route_id, group_data in groupby(reader, key=lambda x: x[1]):
             original_point_list = list(map(lambda x: (float(x[2]), float(x[3])), group_data))
-            shapely_line = LineString(original_point_list)
-            simplified_shapely_line = shapely_line.simplify(0.5)
+            original_shapely_line = LineString(original_point_list)
+            simplified_shapely_line = original_shapely_line.simplify(0.5)
             simplified_point_list = list(simplified_shapely_line.coords)
 
             # get list of points that start a segment of segment_distance
@@ -88,14 +88,26 @@ def create_shape_file(op_date, data_path, output_directory):
             # insert interpolated points in point list
             inserted_points = 0
             index_that_starts_a_segment = []
-            for index, xy_point in enumerate(simplified_shapely_line.coords):
-                distance = simplified_shapely_line.project(Point(xy_point))
-                if distance == 0:
-                    inserted_points += 1
-                    index_that_starts_a_segment.append(0)
-                elif distance > inserted_points * segment_distance:
-                    index_to_insert = index + inserted_points - 1
-                    simplified_point_list.insert(index_to_insert, interpolated_points[inserted_points - 1])
+            for index, current_xy_point in enumerate(simplified_shapely_line.coords[:-1]):
+                current_xy_point = Point(current_xy_point)
+                next_xy_point = Point(simplified_shapely_line.coords[index + 1])
+                if inserted_points == len(interpolated_points):
+                    break
+                else:
+                    current_interpolated_point = Point(interpolated_points[inserted_points])
+
+                # just por simplicity
+                # angle variable is the angle created from the lines P2 -> P1 -> P3
+                p1 = current_xy_point
+                p2 = current_interpolated_point
+                p3 = next_xy_point
+                angle = angle_between(p1, p2, p3)
+
+                if current_xy_point.distance(current_interpolated_point) <= segment_distance and \
+                        next_xy_point.distance(current_interpolated_point) <= segment_distance and \
+                        160 < angle < 200:
+                    index_to_insert = index + inserted_points + 1
+                    simplified_point_list.insert(index_to_insert, interpolated_points[inserted_points])
                     inserted_points += 1
                     index_that_starts_a_segment.append(index_to_insert)
 
