@@ -32,7 +32,7 @@ def create_stop_file(op_date, data_path, output_directory):
             route_id = '{0}{1}{2}'.format(row['Código Usuario'], direction, row['Varian-te'])
             route_id_without_variant = '{0}{1}'.format(row['Código Usuario'], direction)
 
-            if row['x'] in ['', '0'] or row['y'] in ['', '0']:
+            if row['x'] in ['', '0', 'POR DEFINIR'] or row['y'] in ['', '0', 'POR DEFINIR']:
                 logger.warning('location is not defined for route_id "{0}" in stop "{1}"'.format(
                     route_id, row['Código paradero TS']))
                 continue
