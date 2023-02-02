@@ -230,11 +230,20 @@ def upload_op_data_to_server(op_date):
 
     ftp_client.close()
 
-    ssh_client.exec_command("mv /tmp/*.opdata.gz /var/lib/adatrap/data/opdata/")
-    ssh_client.exec_command("mv /tmp/*.stop.gz /var/lib/adatrap/data/stop/")
-    ssh_client.exec_command("mv /tmp/*.shape.gz /var/lib/adatrap/data/shape/")
-    ssh_client.exec_command(
-        "/home/server/fondefVizServer/venv/bin/python /home/server/fondefVizServer/manage.py searchfiles")
+    commands = [
+        "mv /tmp/*.opdata.gz /var/lib/adatrap/data/opdata/",
+        "mv /tmp/*.stop.gz /var/lib/adatrap/data/stop/",
+        "mv /tmp/*.shape.gz /var/lib/adatrap/data/shape/",
+        "/home/server/fondefVizServer/venv/bin/python /home/server/fondefVizServer/manage.py searchfiles"
+    ]
+
+    for command in commands:
+        stdin, stdout, stderr = ssh_client.exec_command(command)
+        exit_status = stdout.channel.recv_exit_status()  # wait execution
+        if exit_status == 0:
+            logger.info("command '{}' executed successfully!".format(command))
+        else:
+            logger.error("Error in execution: '{}'".format(command), exit_status)
 
     ssh_client.close()
 
