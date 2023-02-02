@@ -11,16 +11,14 @@ import utm
 from decouple import config
 from shapely.geometry import LineString, Point
 
-from op_processing_for_vis.config import OUTPUT_PATH, TMP_PATH
+from op_processing_for_vis.config import OUTPUT_PATH, TMP_PATH, SOURCE_DATA_PATH
 from op_processing_for_vis.utils import get_route_id_info, write_csv, get_period_info, AdatrapSiteManager, angle_between
 
 logger = logging.getLogger(__name__)
 
 
-def create_stop_file(op_date, data_path, output_directory):
+def create_stop_file(op_date, stop_path, output_directory):
     route_id_info = get_route_id_info(op_date)
-    stop_filename = 'ConsolidadoParadas_{0}.csv'.format(op_date.replace('-', ''))
-    stop_path = os.path.join(data_path, 'Paraderos', stop_filename)
     new_rows = []
     with open(stop_path, newline='', encoding='utf-8-sig') as csvfile:
         reader = csv.DictReader(csvfile, delimiter=';')
@@ -61,11 +59,9 @@ def create_stop_file(op_date, data_path, output_directory):
     write_csv(output_stop_filepath, header, new_rows)
 
 
-def create_shape_file(op_date, data_path, output_directory):
+def create_shape_file(op_date, shape_path, output_directory):
     route_id_info = get_route_id_info(op_date)
     segment_distance = 500  # distance to interpolate
-    shape_filename = 'ShapeRutas_{0}.csv'.format(op_date.replace('-', ''))
-    shape_path = os.path.join(data_path, 'Rutas', shape_filename)
     new_rows = []
     with open(shape_path, newline='', encoding='utf-8-sig') as csvfile:
         reader = csv.reader(csvfile, delimiter=';')
@@ -137,9 +133,9 @@ def create_op_info(op_date, data_path, output_directory):
                   'Distancias_{}.csv'.format(suffix), 'Velocidades_{}.csv'.format(suffix)]
 
     transformed_data = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
-    for file_index, filename in enumerate(file_names):
-        shape_path = os.path.join(data_path, 'Frecuencias', filename)
-        with open(shape_path, newline='', encoding='utf-8-sig') as csvfile:
+    for file_index, file_name in enumerate(file_names):
+        file_path = os.path.join(data_path, file_name)
+        with open(file_path, newline='', encoding='utf-8-sig') as csvfile:
             reader = csv.reader(csvfile, delimiter=';')
             # skip first fifth rows
             next(reader)
@@ -262,17 +258,21 @@ def build_op_data(op_date):
         shutil.rmtree(output_directory)
     os.makedirs(output_directory)
 
-    data_path = os.path.join(TMP_PATH, '00Entrada', op_date)
+    data_path = os.path.join(SOURCE_DATA_PATH, op_date)
     # copy route dictionary
     route_dictionary_filename = 'Diccionario-Servicios_{0}.csv'.format(op_date.replace('-', ''))
-    route_dictionary_path = os.path.join(data_path, 'Diccionarios', route_dictionary_filename)
+    route_dictionary_path = os.path.join(data_path, route_dictionary_filename)
     shutil.copyfile(route_dictionary_path, os.path.join(output_directory, route_dictionary_filename))
 
     # generate stop file
-    create_stop_file(op_date, data_path, output_directory)
+    stop_filename = 'ConsolidadoParadas_{0}.csv'.format(op_date.replace('-', ''))
+    stop_path = os.path.join(data_path, stop_filename)
+    create_stop_file(op_date, stop_path, output_directory)
 
     # generate shape file
-    create_shape_file(op_date, data_path, output_directory)
+    shape_filename = 'ShapeRutas_{0}.csv'.format(op_date.replace('-', ''))
+    shape_path = os.path.join(data_path, shape_filename)
+    create_shape_file(op_date, shape_path, output_directory)
 
     # generate op info
     create_op_info(op_date, data_path, output_directory)

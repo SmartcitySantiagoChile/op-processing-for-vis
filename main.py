@@ -23,7 +23,7 @@ def download_op_data(
     host = config('FTP_HOST')
     username = config('FTP_USERNAME')
     password = config('FTP_PASSWORD')
-    remote_dir = '00Entrada/{0}'.format(op_date)
+    remote_dir = '00Entrada/01_FichaServicios/{0}'.format(op_date)
     ftp = ftplib.FTP(host, username, password)
     pattern = None
     download_ftp_tree(ftp, remote_dir, TMP_PATH, pattern=pattern, overwrite=True, guess_by_extension=True)

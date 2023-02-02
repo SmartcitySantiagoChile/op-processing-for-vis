@@ -6,7 +6,7 @@ import os
 import requests
 from decouple import config
 
-from op_processing_for_vis.config import TMP_PATH
+from op_processing_for_vis.config import SOURCE_DATA_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +21,9 @@ def angle_between(p1, p2, p3):
 
 
 def get_route_id_info(op_date):
-    data_path = os.path.join(TMP_PATH, '00Entrada', op_date)
+    data_path = os.path.join(SOURCE_DATA_PATH, op_date)
     stop_filename = 'Diccionario-Servicios_{0}.csv'.format(op_date.replace('-', ''))
-    stop_path = os.path.join(data_path, 'Diccionarios', stop_filename)
+    stop_path = os.path.join(data_path, stop_filename)
 
     route_id_info = dict()
     with open(stop_path, newline='', encoding='utf-8-sig') as csvfile:
@@ -37,9 +37,9 @@ def get_route_id_info(op_date):
 
 
 def get_period_info(op_date):
-    data_path = os.path.join(TMP_PATH, '00Entrada', op_date)
+    data_path = os.path.join(SOURCE_DATA_PATH, op_date)
     period_filename = 'Diccionario-PeriodosTS_{0}.csv'.format(op_date.replace('-', ''))
-    period_path = os.path.join(data_path, 'Diccionarios', period_filename)
+    period_path = os.path.join(data_path, period_filename)
 
     period_id_info = dict()
     with open(period_path, newline='', encoding='utf-8-sig') as csvfile:
