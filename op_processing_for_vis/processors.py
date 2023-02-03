@@ -260,6 +260,16 @@ def upload_op_data_to_es(op_date):
     adatrap_site_manager.upload_file('{0}.opdata.gz'.format(op_date))
 
 
+def upload_op_data_dictionary(op_date):
+    adatrap_site_manager = AdatrapSiteManager()
+    adatrap_site_manager.upload_dictionary(op_date)
+
+
+def mark_date_as_op_change(op_date):
+    adatrap_site_manager = AdatrapSiteManager()
+    adatrap_site_manager.mark_date_as_op_change(op_date)
+
+
 def build_op_data(op_date):
     # create output directory
     output_directory = os.path.join(OUTPUT_PATH, op_date)

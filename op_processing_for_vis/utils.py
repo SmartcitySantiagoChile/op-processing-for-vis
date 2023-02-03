@@ -75,6 +75,10 @@ class AdatrapSiteManager:
         self.LOGIN_URL = '{0}/user/login/'.format(self.server_name)
         self.UPLOAD_FILE_DATA_PAGE = '{0}/admin/datamanager/managerOP/'.format(self.server_name)
         self.UPLOAD_FILE_DATA = '{0}/admin/datamanager/uploadData/'.format(self.server_name)
+        self.UPLOAD_FILE_DICTIONARY_DATA_VIEW = '{0}/admin/localinfo/opdictionary/'.format(self.server_name)
+        self.UPLOAD_FILE_DICTIONARY_DATA = '{0}/localinfo/uploadOP/'.format(self.server_name)
+        self.OP_DATA_LIST = '{0}/localinfo/opProgramList/'.format(self.server_name)
+        self.CREATE_CALENDAR_DATE = '{0}/admin/localinfo/calendarinfo/add/'.format(self.server_name)
 
         self.session = self.get_logged_session()
 
@@ -108,4 +112,53 @@ class AdatrapSiteManager:
         })
 
         response = self.session.post(self.UPLOAD_FILE_DATA, data=payload)
+        logger.info('Resultado de envío: {0}'.format(response.status_code))
+
+    def upload_dictionary(self, op_date):
+        payload = {}
+
+        # retrieve csrf token
+        res = self.session.get(self.UPLOAD_FILE_DICTIONARY_DATA_VIEW)
+        csrf_token = res.cookies['csrftoken']
+        payload['csrfmiddlewaretoken'] = csrf_token
+
+        # get file data
+        data_path = os.path.join(SOURCE_DATA_PATH, op_date)
+        filename = 'Diccionario-Servicios_{0}.csv'.format(op_date.replace('-', ''))
+        filepath = os.path.join(data_path, filename)
+
+        with open(filepath, 'rb') as file_obj:
+            file_content = file_obj.read()
+
+        # get operation program id
+        op_id = None
+        op_program_list = self.session.get(self.OP_DATA_LIST).json()['opProgramList']
+        for op_program in op_program_list:
+            if op_program['item'] == op_date:
+                op_id = op_program['value']
+                break
+
+        # set data
+        payload['opId'] = op_id
+        files = dict(OPDictionary=('dictionary.csv', file_content))
+
+        self.session.headers.update({
+            'referer': self.UPLOAD_FILE_DICTIONARY_DATA
+        })
+        json_response = self.session.post(self.UPLOAD_FILE_DICTIONARY_DATA, files=files, data=payload,
+                                          cookies=res.cookies).json()
+        logger.info('Se crearon {0} registros'.format(json_response['created']))
+
+    def mark_date_as_op_change(self, op_date):
+        payload = {}
+
+        # retrieve csrf token
+        res = self.session.get(self.CREATE_CALENDAR_DATE)
+        csrf_token = res.cookies['csrftoken']
+        payload['csrfmiddlewaretoken'] = csrf_token
+
+        payload['date'] = op_date
+        payload['day_description'] = 2
+
+        response = self.session.post(self.CREATE_CALENDAR_DATE, data=payload, cookies=res.cookies)
         logger.info('Resultado de envío: {0}'.format(response.status_code))

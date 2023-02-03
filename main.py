@@ -6,7 +6,8 @@ from decouple import config
 
 from op_processing_for_vis.config import TMP_PATH
 from op_processing_for_vis.ftp import download_ftp_tree
-from op_processing_for_vis.processors import build_op_data, upload_op_data_to_server, upload_op_data_to_es
+from op_processing_for_vis.processors import build_op_data, mark_date_as_op_change, upload_op_data_to_server, \
+    upload_op_data_to_es, upload_op_data_dictionary
 
 app = typer.Typer()
 
@@ -49,6 +50,12 @@ def upload_op_data(op_date: str = typer.Argument(..., help='operation program fo
 
     # upload files to elasticsearch
     upload_op_data_to_es(op_date)
+
+    # upload route dictionary
+    upload_op_data_dictionary(op_date)
+
+    # mark date as operation program change
+    mark_date_as_op_change(op_date)
 
 
 if __name__ == "__main__":
