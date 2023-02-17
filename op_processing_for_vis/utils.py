@@ -2,6 +2,7 @@ import csv
 import logging
 import math
 import os
+import time
 
 import requests
 from decouple import config
@@ -132,11 +133,18 @@ class AdatrapSiteManager:
 
         # get operation program id
         op_id = None
-        op_program_list = self.session.get(self.OP_DATA_LIST).json()['opProgramList']
-        for op_program in op_program_list:
-            if op_program['item'] == op_date:
-                op_id = op_program['value']
+        while True:
+            # we need to wait to elasticsearch processes data to return the date
+            op_program_list = self.session.get(self.OP_DATA_LIST).json()['opProgramList']
+            for op_program in op_program_list:
+                if op_program['item'] == op_date:
+                    op_id = op_program['value']
+                    break
+
+            if op_id is not None:
                 break
+            else:
+                time.sleep(2)
 
         # set data
         payload['opId'] = op_id
