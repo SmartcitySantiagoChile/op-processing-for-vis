@@ -58,6 +58,18 @@ def upload_op_data(op_date: str = typer.Argument(..., help='operation program fo
     mark_date_as_op_change(op_date)
 
 
+@app.command()
+def run_all_processes(
+        op_date: str = typer.Argument(..., help='operation program folder name. For instance, 2022-07-02')):
+    """
+    download, process and upload operation program data
+    :param op_date: date where operation program starts to work
+    """
+    download_op_data(op_date)
+    process_op_data(op_date)
+    upload_op_data(op_date)
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
     app()
