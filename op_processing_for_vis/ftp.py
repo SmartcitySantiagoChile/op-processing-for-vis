@@ -122,7 +122,7 @@ if __name__ == "__main__":
     # Example usage mirroring all jpg files in an FTP directory tree.
     mysite = "200.29.15.112"
     username = "fondef"
-    password = "moneda975"
+    password = ""
     remote_dir = "00Entrada/2022-07-02"
     local_dir = TMP_PATH
     pattern = None
