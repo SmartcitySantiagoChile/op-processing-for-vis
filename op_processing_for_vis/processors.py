@@ -10,6 +10,7 @@ import paramiko
 import utm
 from decouple import config
 from shapely.geometry import LineString, Point
+from utm import OutOfRangeError
 
 from op_processing_for_vis.config import OUTPUT_PATH, TMP_PATH, SOURCE_DATA_PATH
 from op_processing_for_vis.utils import get_route_id_info, write_csv, get_period_info, AdatrapSiteManager, angle_between
@@ -117,11 +118,15 @@ def create_shape_file(op_date, shape_path, output_directory):
                 is_section_init = 0
                 if index in index_that_starts_a_segment:
                     is_section_init = 1
-                latitude, longitude = utm.to_latlon(point_data[0], point_data[1], 19, 'H')
-                latitude = round(latitude, 6)
-                longitude = round(longitude, 6)
-                new_row = [auth_route_code, is_section_init, latitude, longitude, operator_code, user_route_code]
-                new_rows.append(new_row)
+                try:
+                    latitude, longitude = utm.to_latlon(point_data[0], point_data[1], 19, 'H')
+                    latitude = round(latitude, 6)
+                    longitude = round(longitude, 6)
+                    new_row = [auth_route_code, is_section_init, latitude, longitude, operator_code, user_route_code]
+                    new_rows.append(new_row)
+                except OutOfRangeError:
+                    logger.warning('Route {0} ({1}) has wrong point ({2}, {3})'.format(
+                        auth_route_code, user_route_code, point_data[0], point_data[1]))
 
     output_shape_filepath = os.path.join(output_directory, '{0}.shape'.format(op_date))
     header = ['Route', 'IsSectionInit', 'Latitude', 'Longitude', 'Operator', 'RouteUser']
